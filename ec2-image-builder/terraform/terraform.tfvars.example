@@ -1,0 +1,22 @@
+# AWS Configuration
+aws_region = "ap-northeast-2"
+
+# Project Configuration
+project_name = "isms-golden-ami"
+environment  = "prod"
+
+# Network Configuration
+vpc_id    = "vpc-xxxxxxxxx"  # Your VPC ID
+subnet_id = "subnet-xxxxxxxxx"  # Private subnet ID for building
+
+# Encryption (Optional)
+kms_key_id = "arn:aws:kms:ap-northeast-2:123456789012:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Instance Types for Building
+instance_types = ["t3.medium", "t3.large"]
+
+# AMI Sharing (Optional)
+allowed_principals = [
+  "123456789012",  # Your AWS Account ID
+  # "987654321098"  # Additional account IDs if needed
+]
