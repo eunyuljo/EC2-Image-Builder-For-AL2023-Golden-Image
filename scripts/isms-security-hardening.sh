@@ -89,5 +89,8 @@ cat > /etc/issue << 'EOF'
 ************************************************************************
 EOF
 cp /etc/issue /etc/issue.net
+sed -i 's/#Banner none/Banner \/etc\/issue.net/' /etc/ssh/sshd_config
 
+
+# complete
 echo "ISMS security hardening completed successfully!"
