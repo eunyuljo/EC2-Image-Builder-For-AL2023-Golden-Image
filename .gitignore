@@ -1,0 +1,59 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+
+# Terraform crash logs
+crash.log
+
+# AWS credentials and config
+.aws/
+*.pem
+*.key
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# OS generated files
+Thumbs.db
+.directory
+
+# Backup files
+*.bak
+*.backup
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+
+# Personal notes
+notes.txt
+TODO.txt
+NOTES.md
