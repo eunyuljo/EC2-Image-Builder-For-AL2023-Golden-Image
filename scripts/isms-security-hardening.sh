@@ -48,12 +48,12 @@ chmod 000 /etc/shadow
 chmod 000 /etc/gshadow
 chmod 644 /etc/group
 
-# Logging Configuration
-cat >> /etc/rsyslog.conf << 'EOF'
-# ISMS Logging Configuration
-auth,authpriv.*                 /var/log/auth.log
-*.info;mail.none;authpriv.none;cron.none    /var/log/messages
-EOF
+# # Logging Configuration
+# cat >> /etc/rsyslog.conf << 'EOF'
+# # ISMS Logging Configuration
+# auth,authpriv.*                 /var/log/auth.log
+# *.info;mail.none;authpriv.none;cron.none    /var/log/messages
+# EOF
 
 # Account Security
 sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs
@@ -71,13 +71,17 @@ mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 # CloudWatch Agent
 dnf install -y amazon-cloudwatch-agent
 
+# at 비활성화
+sudo systemctl disable --now atd
+chown root:root /etc/at.deny
+chmod 600 /etc/at.deny
+
+# pam_wheel.so 를 사용해서 wheel 그룹으로 제한
+sed -i 's/^#\s*\(auth\s\+required\s\+pam_wheel.so\s\+use_uid\)/\1/' /etc/pam.d/su
+
 # Set timezone
 timedatectl set-timezone Asia/Seoul
 
-# Automatic security updates
-dnf install -y dnf-automatic
-sed -i 's/apply_updates = no/apply_updates = yes/' /etc/dnf/automatic.conf
-systemctl enable dnf-automatic.timer
 
 # Security banner
 cat > /etc/issue << 'EOF'
