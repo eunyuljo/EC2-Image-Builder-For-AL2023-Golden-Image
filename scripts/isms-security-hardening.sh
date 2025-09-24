@@ -10,6 +10,10 @@ dnf update -y
 # Install security tools
 dnf install -y aide rkhunter chkrootkit fail2ban
 
+
+# Remove unnecessary packages
+dnf remove -y telnet rsh ypbind tftp xinetd 2>/dev/null || echo "Some packages not found, skipping..."
+
 # Disable unnecessary services
 systemctl disable cups bluetooth 2>/dev/null || echo "Some services not found, skipping..."
 systemctl stop cups bluetooth 2>/dev/null || echo "Some services not running, skipping..."
@@ -55,14 +59,25 @@ chmod 644 /etc/group
 # *.info;mail.none;authpriv.none;cron.none    /var/log/messages
 # EOF
 
-# Account Security
+
+# U-02 - /etc/security/pwdquality 
+cp /etc/security/pwquality.conf /etc/security/pwquality.conf.bak
+echo -e "minlen = 9\ndcredit = -1\nucredit = -1\nlcredit = -1\nocredit = -1" | sudo tee /etc/security/pwquality.conf
+
+# U-13 - SUID, SGID, Sticky bit
+sudo chmod 750 /sbin/unix_chkpwd /usr/bin/newgrp /usr/bin/at
+# at 비활성화
+sudo systemctl disable --now atd
+chown root:root /etc/at.deny
+chmod 600 /etc/at.deny
+
+
+# U-46 - Account Security
 sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs
-sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS 7/' /etc/login.defs
+sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS 1/' /etc/login.defs
 sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_LEN 8/' /etc/login.defs
 sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE 7/' /etc/login.defs
 
-# Remove unnecessary packages
-dnf remove -y telnet rsh ypbind tftp xinetd 2>/dev/null || echo "Some packages not found, skipping..."
 
 # Configure AIDE
 aide --init
@@ -71,29 +86,105 @@ mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 # CloudWatch Agent
 dnf install -y amazon-cloudwatch-agent
 
-# at 비활성화
-sudo systemctl disable --now atd
-chown root:root /etc/at.deny
-chmod 600 /etc/at.deny
-
-# pam_wheel.so 를 사용해서 wheel 그룹으로 제한
+# U-45 - pam_wheel.so 를 사용해서 wheel 그룹으로 제한
 sed -i 's/^#\s*\(auth\s\+required\s\+pam_wheel.so\s\+use_uid\)/\1/' /etc/pam.d/su
 
 # Set timezone
 timedatectl set-timezone Asia/Seoul
 
+# U-54 - timeout 설정
+echo "export TMOUT=600" | sudo tee -a /etc/profile
 
-# Security banner
+# U-68 - Security banner
 cat > /etc/issue << 'EOF'
-************************************************************************
-*                          WARNING                                     *
-*  이 시스템은 인가된 사용자만 접근할 수 있습니다.                      *
-*  모든 활동은 모니터링되고 기록됩니다.                                *
-*  무단 접근은 법적 처벌을 받을 수 있습니다.                           *
-************************************************************************
+*******************************************************************************
+*                             SECURITY NOTICE                                 *
+*                                                                             *
+*  This system is for the use of authorized users only.                       *
+*  Unauthorized access or use is strictly prohibited and may be prosecuted    *
+*  under applicable laws.                                                     *
+*                                                                             *
+*  All activities on this system are monitored and recorded.                  *
+*  By accessing this system, you consent to such monitoring.                  *
+*                                                                             *
+*  Disconnect immediately if you are not an authorized user.                  *
+*                                                                             *
+*******************************************************************************
 EOF
+
 cp /etc/issue /etc/issue.net
 sed -i 's/#Banner none/Banner \/etc\/issue.net/' /etc/ssh/sshd_config
+
+
+# 백업 생성
+cp /etc/pam.d/system-auth /etc/pam.d/system-auth.backup.$(date +%Y%m%d_%H%M%S)
+cp /etc/pam.d/password-auth /etc/pam.d/password-auth.backup.$(date +%Y%m%d_%H%M%S)
+
+# system-auth 새 설정 생성
+cat > /etc/pam.d/system-auth << 'EOF'
+#%PAM-1.0
+auth        required      pam_env.so
+auth        required      pam_faillock.so preauth silent audit deny=10
+auth        sufficient    pam_unix.so try_first_pass nullok
+auth        [default=die] pam_faillock.so authfail audit deny=10
+auth        required      pam_deny.so
+
+account     required      pam_faillock.so
+account     required      pam_unix.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so try_first_pass use_authtok nullok sha512 shadow
+password    required      pam_deny.so
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+-session     optional      pam_systemd.so
+session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
+EOF
+
+# password-auth 새 설정 생성
+cat > /etc/pam.d/password-auth << 'EOF'
+#%PAM-1.0
+auth        required      pam_env.so
+auth        required      pam_faillock.so preauth silent audit deny=10
+auth        sufficient    pam_unix.so try_first_pass nullok
+auth        [default=die] pam_faillock.so authfail audit deny=10
+auth        required      pam_deny.so
+
+account     required      pam_faillock.so
+account     required      pam_unix.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so try_first_pass use_authtok nullok sha512 shadow
+password    required      pam_deny.so
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+-session     optional      pam_systemd.so
+session     [success=1 default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
+EOF
+
+echo "PAM configuration files have been updated with faillock settings."
+
+# 권한 설정
+chmod 644 /etc/pam.d/system-auth
+chmod 644 /etc/pam.d/password-auth
+
+# 설정 검증
+echo "Verifying configuration..."
+echo "=== system-auth structure ==="
+grep -E "^(auth|account|password|session)" /etc/pam.d/system-auth
+
+echo "=== password-auth structure ==="
+grep -E "^(auth|account|password|session)" /etc/pam.d/password-auth
+
+
+
+
+
+
 
 
 # complete
